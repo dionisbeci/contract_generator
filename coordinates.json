@@ -1,0 +1,26 @@
+{
+    "invoice_template1": {
+        "static_fields": {
+            "doc_date":               { "x": 429, "y": 730, "page": 1 },
+            "customer_name":          { "x": 73,  "y": 523, "page": 1 },
+            "customer_nipt":            { "x": 437, "y": 524, "page": 1 },
+            "customer_full_address":  { "x": 73,  "y": 500, "page": 1 },
+            "customer_name_sign":     { "x": 379, "y": 650, "page": 10, "align": "center" }
+        }
+    },
+
+    "invoice_template2":{
+        
+        "items_section": {
+            "page": 1,
+            "start_y": 530,
+            "line_height": 20,
+            "columns": {
+                "name_x": 80,
+                "qty_x": 237,
+                "price_x": 323,
+                "total_x": 435
+            }
+        }
+    }
+}
