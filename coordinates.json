@@ -1,5 +1,5 @@
 {
-    "invoice_template1": {
+    "kontrate_template": {
         "static_fields": {
             "doc_date":               { "x": 429, "y": 730, "page": 1 },
             "customer_name":          { "x": 73,  "y": 523, "page": 1 },
@@ -9,7 +9,7 @@
         }
     },
 
-    "invoice_template2":{
+    "oferte_template":{
         
         "items_section": {
             "page": 1,
