@@ -1,0 +1,16 @@
+{
+    "template_names": ["kontrate_template", "oferte_template"],
+    "context": {
+        "doc_date": "23-09-2025",
+        "customer_name": "Quantum Solutions Ltd.",
+        "customer_nipt": "L12345678A",
+        "customer_address": "123 Innovation Drive",
+        "customer_city": "Tech Valley",
+        "customer_name_sign": "",
+        "items": [
+            { "name": "Software License", "qty": 2, "price": "50000.00", "total": "1000.00" },
+            { "name": "Setup Service", "qty": 1, "price": "250.00", "total": "250.00" }
+        ],
+        "total": "1250.00"
+    }
+}
