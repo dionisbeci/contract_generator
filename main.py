@@ -65,8 +65,10 @@ try:
 except Exception as e:
     logging.critical(f"FATAL STARTUP ERROR: Could not initialize Google Cloud services. Error: {e}", exc_info=True)
 
+
 @app.before_request
 def verify_google_id_token():
+   
     if request.endpoint and ('static' in request.endpoint or 'flasgger' in request.endpoint):
         return
 
@@ -97,6 +99,7 @@ def verify_google_id_token():
 
 @app.route('/generate-pdf', methods=['POST'])
 def generate_pdf():
+
     """
     Gjeneron Faturë ose Kontratë në PDF / Generate PDF Invoice or Contract
     This endpoint creates a PDF document by stamping data onto one or more templates.
@@ -280,6 +283,7 @@ def generate_pdf():
 
 @app.route('/get-contracts/<string:nipt>', methods=['GET'])
 def get_contracts_by_nipt(nipt):
+
     """
     Merr të gjitha kontratat për një NIPT si skedar ZIP / Get all contracts for a NIPT as a ZIP file
     This endpoint finds all generated PDFs for a given customer NIPT, packages them
@@ -347,7 +351,6 @@ def get_contracts_by_nipt(nipt):
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
 
-
 @app.route('/get-contract/<string:nipt>', methods=['GET'])
 def get_latest_contract_by_nipt(nipt):
     """
@@ -411,6 +414,10 @@ def get_latest_contract_by_nipt(nipt):
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port, debug=True)
+def contract_generator(request):
+    """
+    Cloud Function entry point.
+    """
+
+    with app.request_context(request.environ):
+        return app.full_dispatch_request()
