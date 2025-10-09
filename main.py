@@ -11,6 +11,9 @@ import os
 from flasgger import Swagger
 import zipfile
 
+from concurrent.futures import ThreadPoolExecutor
+import datetime
+
 from google.auth.transport import requests
 from google.oauth2 import id_token
 
@@ -283,73 +286,62 @@ def generate_pdf():
 
 @app.route('/get-contracts/<string:nipt>', methods=['GET'])
 def get_contracts_by_nipt(nipt):
-
-    """
-    Merr të gjitha kontratat për një NIPT si skedar ZIP / Get all contracts for a NIPT as a ZIP file
-    This endpoint finds all generated PDFs for a given customer NIPT, packages them
-    into a single ZIP archive, and returns the archive.
-    ---
-    tags:
-      - "Marrja e Kontratave (Contract Retrieval)"
-    security:
-      - BearerAuth: []
-    produces:
-      - application/zip
-      - application/json
-    parameters:
-      - name: nipt
-        in: path
-        type: string
-        required: true
-        description: "NIPT-i i klientit për të kërkuar kontratat."
-    responses:
-      200:
-        description: "Suksess. Një skedar ZIP me të gjitha PDF-të e gjetura kthehet si përgjigje."
-        content:
-            application/zip:
-                schema:
-                    type: string
-                    format: binary
-      401:
-        description: "I Paautorizuar. Tokeni i autorizimit mungon ose është i pavlefshëm."
-      404:
-        description: "Nuk u Gjet. Asnjë PDF nuk u gjet për NIPT-in e dhënë."
-    """
     if not bucket:
         return jsonify({"error": "Server is not configured correctly. Cannot connect to storage."}), 500
-
     try:
         prefix = f"contracts/{nipt}_"
         blobs = list(storage_client.list_blobs(BUCKET_NAME, prefix=prefix))
-
         if not blobs:
-            app.logger.info(f"No contracts found for NIPT: {nipt}")
             return jsonify({"error": f"No contract PDFs found for NIPT '{nipt}'"}), 404
-
         zip_buffer = io.BytesIO()
-
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            app.logger.info(f"Found {len(blobs)} contracts for NIPT {nipt}. Creating ZIP archive.")
-            for blob in blobs:
-                pdf_content = blob.download_as_bytes()
+        def download_blob(blob):
+            try:
                 file_name = os.path.basename(blob.name)
-                zf.writestr(file_name, pdf_content)
-
+                if not file_name: return None
+                content = blob.download_as_bytes()
+                return (file_name, content)
+            except Exception as e:
+                app.logger.error(f"Failed to download blob: {blob.name}. Error: {e}")
+                return None
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            app.logger.info(f"Found {len(blobs)} contracts for NIPT {nipt}. Downloading in parallel.")
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                results = executor.map(download_blob, blobs)
+                for result in results:
+                    if result:
+                        file_name, pdf_content = result
+                        zf.writestr(file_name, pdf_content)
         zip_buffer.seek(0)
-        
         zip_download_name = f"{nipt}_contracts.zip"
-
-        return send_file(
-            zip_buffer,
-            mimetype='application/zip',
-            as_attachment=True,
-            download_name=zip_download_name
-        )
-
+        return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=zip_download_name)
     except Exception as e:
         app.logger.error(f"An unexpected error occurred while fetching contracts for NIPT {nipt}: {e}", exc_info=True)
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
+@app.route('/get-contract-links/<string:nipt>', methods=['GET'])
+def get_contract_links_by_nipt(nipt):
+    if not bucket:
+        return jsonify({"error": "Server is not configured correctly. Cannot connect to storage."}), 500
+    try:
+        prefix = f"contracts/{nipt}_"
+        blobs = list(storage_client.list_blobs(BUCKET_NAME, prefix=prefix))
+        if not blobs:
+            return jsonify({"error": f"No contract PDFs found for NIPT '{nipt}'"}), 404
+        urls = []
+        for blob in blobs:
+            try:
+                file_name = os.path.basename(blob.name)
+                if not file_name: continue
+                signed_url = blob.generate_v4_signed_url(expiration=datetime.timedelta(minutes=15), method='GET')
+                urls.append({"file_name": file_name, "url": signed_url})
+            except Exception as e:
+                app.logger.error(f"Failed to generate signed URL for blob: {blob.name}. Error: {e}")
+                continue
+        app.logger.info(f"Generated {len(urls)} signed URLs for NIPT {nipt}.")
+        return jsonify(urls), 200
+    except Exception as e:
+        app.logger.error(f"An unexpected error occurred while generating signed URLs for NIPT {nipt}: {e}", exc_info=True)
+        return jsonify({"error": "An unexpected server error occurred."}), 500
 
 @app.route('/get-contract/<string:nipt>', methods=['GET'])
 def get_latest_contract_by_nipt(nipt):
